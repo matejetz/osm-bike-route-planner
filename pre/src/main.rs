@@ -4,6 +4,7 @@ extern crate serde;
 
 #[cfg(test)]
 mod tests;
+mod srtm;
 
 use bincode::serialize_into;
 use osmpbfreader::{groups, primitive_block_from_blob};
@@ -31,6 +32,7 @@ struct Way {
 struct Node {
     latitude: f32,
     longitude: f32,
+    aviation: f32,
 }
 
 #[derive(Serialize, Debug)]
@@ -229,6 +231,7 @@ fn main() {
         Node {
             latitude: 0.0,
             longitude: 0.0,
+            aviation: 0.0
         },
     );
     offset.resize(amount_nodes + 1, 0);
@@ -253,6 +256,7 @@ fn main() {
                             // https://github.com/rust-lang/rfcs/blob/master/text/1682-field-init-shorthand.md
                             latitude,
                             longitude,
+                            aviation: 0.0,
                         };
                         let lat_grid = (latitude * GRID_MULTIPLICATOR as f32) as usize;
                         let lng_grid = (longitude * GRID_MULTIPLICATOR as f32) as usize;
