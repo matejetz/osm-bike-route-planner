@@ -1,7 +1,7 @@
 [package]
 name = "osm-dijkstra-web"
 version = "1.0.0"
-authors = [ "Felix Buehler <account@buehler.rocks>", "Simon Matejetz <asdf@todo.de>" ]
+authors = ["Simon Matejetz <st117468@stud.uni-stuttgart.de>"]
 
 include = [
   "README.md",
