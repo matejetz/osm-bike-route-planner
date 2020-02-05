@@ -2,17 +2,20 @@ extern crate bincode;
 extern crate osmpbfreader;
 extern crate serde;
 
-#[cfg(test)]
-mod tests;
-mod srtm;
-
-use bincode::serialize_into;
-use osmpbfreader::{groups, primitive_block_from_blob};
-use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
+
+use bincode::serialize_into;
+use osmpbfreader::{groups, primitive_block_from_blob};
+use serde::Serialize;
+
+use srtm::SRTM;
+
+#[cfg(test)]
+mod tests;
+mod srtm;
 
 // 2^18
 const COST_MULTIPLICATOR: usize = 262144;
@@ -32,7 +35,7 @@ struct Way {
 struct Node {
     latitude: f32,
     longitude: f32,
-    aviation: f32,
+    elevation: i16,
 }
 
 #[derive(Serialize, Debug)]
@@ -231,7 +234,7 @@ fn main() {
         Node {
             latitude: 0.0,
             longitude: 0.0,
-            aviation: 0.0
+            elevation: 0,
         },
     );
     offset.resize(amount_nodes + 1, 0);
@@ -242,7 +245,9 @@ fn main() {
         Err(_e) => panic!("rewind was not successfull"),
     }
 
+    let mut srtm = SRTM::new();
     // store all geo-information about the nodes
+    let mut latest_elevation_opt: Option<i16> = Some(0);
     for block in pbf.blobs().map(|b| primitive_block_from_blob(&b.unwrap())) {
         let block = block.unwrap();
         for group in block.get_primitivegroup().iter() {
@@ -252,11 +257,26 @@ fn main() {
                     Some(our_id) => {
                         let latitude = node.decimicro_lat as f32 / 10_000_000.0;
                         let longitude = node.decimicro_lon as f32 / 10_000_000.0;
+                        println!("lat {}, lon {}", latitude, longitude);
+                        let elevation = match srtm.get_elevation(latitude, longitude) {
+                            Some(elevation) => {
+                                latest_elevation_opt = Some(elevation);
+                                elevation
+                            },
+                            None => {
+                                match latest_elevation_opt {
+                                    Some(latest_elevation) => latest_elevation,
+                                    None => {
+                                        panic!{"No way to set elevation of node: {}", node.id.0}
+                                    }
+                                }
+                            }
+                        };
                         nodes[*our_id] = Node {
                             // https://github.com/rust-lang/rfcs/blob/master/text/1682-field-init-shorthand.md
                             latitude,
                             longitude,
-                            aviation: 0.0,
+                            elevation,
                         };
                         let lat_grid = (latitude * GRID_MULTIPLICATOR as f32) as usize;
                         let lng_grid = (longitude * GRID_MULTIPLICATOR as f32) as usize;
