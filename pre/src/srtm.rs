@@ -8,8 +8,7 @@ use std::fs::File;
 use std::io::{Bytes, copy, Read, Write};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-
-use self::reqwest::Error;
+use serde_json::error::ErrorCode::LoneLeadingSurrogateInHexEscape;
 
 const ELEVATION_NULL_VALUE: i16 = -32768;
 
@@ -22,7 +21,18 @@ struct GeoElevationFile {
     latitude: f32,
     longitude: f32,
     data: Vec<u8>,
+    resolution: f64,
     square_side: i64,
+}
+
+enum LatitudeOrientation {
+    North,
+    South,
+}
+
+enum LongitudeOrientation {
+    West,
+    East,
 }
 
 impl SRTM {
@@ -32,19 +42,22 @@ impl SRTM {
         }
     }
 
-    pub fn get_elevation(&mut self, latitude: f32, longitude: f32) -> Option<i16> {
+    pub fn get_elevation(&mut self, latitude: f32, longitude: f32, interpolate: bool) -> Option<f32> {
         let geo_file = self.get_file(latitude, longitude);
-        return match geo_file.get_elevation(latitude, longitude) {
-            Ok(elevation) => {
-                if elevation == ELEVATION_NULL_VALUE { None } else { Some(elevation) }
-            }
-            Err(error) => None
-        };
+        if !interpolate {
+            return match geo_file.get_elevation(latitude, longitude) {
+                Ok(elevation) => {
+                    if elevation == ELEVATION_NULL_VALUE { None } else { Some(elevation as f32) }
+                }
+                Err(error) => None
+            };
+        } else {
+            return Some(geo_file.get_interpolated_elevation(latitude, longitude));
+        }
     }
 
     fn get_file(&mut self, latitude: f32, longitude: f32) -> &GeoElevationFile {
         let file_name = SRTM::get_file_name(latitude, longitude);
-        println!("{}", file_name);
         if !self._files.contains_key(file_name.as_str()) {
             let data = self.load_file_data(file_name.as_str());
             let geo_file = GeoElevationFile::new(file_name.clone(), latitude, longitude, data);
@@ -90,21 +103,31 @@ impl SRTM {
         Ok(())
     }
 
+    fn get_latitude_orientation(latitude: f32) -> LatitudeOrientation {
+        return if latitude >= 0.0 {
+            LatitudeOrientation::North
+        } else {
+            LatitudeOrientation::South
+        };
+    }
+
+    fn get_longitude_orientation(longitude: f32) -> LongitudeOrientation {
+        return if longitude >= 0.0 {
+            LongitudeOrientation::East
+        } else {
+            LongitudeOrientation::West
+        };
+    }
 
     fn get_file_name(latitude: f32, longitude: f32) -> String {
-        let north_south;
-        let east_west;
-        if latitude >= 0.0 {
-            north_south = "N";
-        } else {
-            north_south = "S";
-        }
-        if longitude >= 0.0 {
-            east_west = "E";
-        } else {
-            east_west = "W";
-        }
-
+        let north_south = match SRTM::get_latitude_orientation(latitude) {
+            LatitudeOrientation::North => "N",
+            LatitudeOrientation::South => "S"
+        };
+        let east_west = match SRTM::get_longitude_orientation(longitude) {
+            LongitudeOrientation::East => "E",
+            LongitudeOrientation::West => "W"
+        };
         return format!("{}{:0>2}{}{:0>3}", north_south, (latitude.floor() as i32).to_string(), east_west, (longitude.floor() as i32).to_string());
     }
 }
@@ -113,12 +136,15 @@ impl GeoElevationFile {
     pub fn new(file_name: String, latitude: f32, longitude: f32, data: Vec<u8>) -> Self {
         let square_side = (data.len() as f64 / 2.0).sqrt();
         let resolution = 1.0 / (square_side - 1.0);
+        let lat_filename = latitude.floor();
+        let lon_filename = longitude.floor();
         let final_square_side = square_side as i64;
         let file = GeoElevationFile {
             file_name,
-            latitude,
-            longitude,
+            latitude: lat_filename,
+            longitude: lon_filename,
             data,
+            resolution,
             square_side: final_square_side,
         };
         file
@@ -126,7 +152,6 @@ impl GeoElevationFile {
 
     fn get_elevation(&self, latitude: f32, longitude: f32) -> Result<i16, String> {
         let (row, column) = self.get_row_and_column(latitude, longitude);
-
         return self.get_elevation_from_row_and_column(row, column);
     }
 
@@ -136,16 +161,86 @@ impl GeoElevationFile {
         return (row, column);
     }
 
+    /// returns the latitude and longitude represented by the position (row+column) in the file
+    fn get_lat_and_lon(&self, row: i64, column: i64) -> (f32, f32) {
+        return (self.latitude + 1.0 - row as f32 * self.resolution as f32, self.longitude + column as f32 * self.resolution as f32);
+    }
+
     fn get_elevation_from_row_and_column(&self, row: i64, column: i64) -> Result<i16, String> {
         let i = row * self.square_side + column;
-        println!("i {}", i);
         if ((i * 2 + 1) as usize) > self.data.len() {
             return Err(format!("Index not in array for file {}", self.file_name));
         }
         let first_byte = self.data[(i * 2) as usize];
-        let second_byte = self.data[(i * 2 + 1) as usize];
+        let second_byte = self.data[((i * 2) + 1) as usize];
         let elevation = i16::from_be_bytes([first_byte, second_byte]);
         return Ok(elevation);
+    }
+
+    fn get_interpolated_elevation(&self, latitude: f32, longitude: f32) -> f32 {
+        let mut ele_weight = self.get_elevation_weight_of_neighbors(latitude, longitude);
+
+        // sum all weights in result
+        let sum_weights: f32 = ele_weight.iter().map(|&e_w| e_w.1).sum();
+        // return normalized sum
+        return ele_weight.iter().map(|&e_w| (e_w.1 / sum_weights) * e_w.0 as f32).sum();
+    }
+
+    fn get_elevation_weight_of_neighbors(&self, latitude: f32, longitude: f32) -> Vec<(i16, f32)> {
+        let (row, column) = self.get_row_and_column(latitude, longitude);
+        let mut ele_weight = Vec::<(i16, f32)>::new();
+        match self.get_elevation_from_row_and_column(row, column) {
+            Ok(ele) => {
+                let (lat_nearest, lon_nearest) = self.get_lat_and_lon(row, column);
+                let weight_nearest = Self::distance(latitude, longitude, lat_nearest, lon_nearest);
+                ele_weight.push((ele, weight_nearest));
+            }
+            Err(e) => ()
+        }
+
+        match self.get_elevation_from_row_and_column(row, column - 1) {
+            Ok(ele) => {
+                let (lat_west, lon_west) = self.get_lat_and_lon(row, column - 1);
+                let weight_west = Self::distance(latitude, longitude, lat_west, lon_west);
+                ele_weight.push((ele, weight_west));
+            }
+            Err(e) => ()
+        }
+
+        match self.get_elevation_from_row_and_column(row, column + 1) {
+            Ok(ele) => {
+                let (lat_east, lon_east) = self.get_lat_and_lon(row, column + 1);
+                let weight_east = Self::distance(latitude, longitude, lat_east, lon_east);
+                ele_weight.push((ele, weight_east));
+            }
+            Err(e) => ()
+        }
+
+        match self.get_elevation_from_row_and_column(row - 1, column) {
+            Ok(ele) => {
+                let (lat_north, lon_north) = self.get_lat_and_lon(row - 1, column);
+                let weight_north = Self::distance(latitude, longitude, lat_north, lon_north);
+                ele_weight.push((ele, weight_north));
+            }
+            Err(e) => ()
+        }
+
+        match self.get_elevation_from_row_and_column(row + 1, column) {
+            Ok(ele) => {
+                let (lat_south, lon_south) = self.get_lat_and_lon(row + 1, column);
+                let weight_south = Self::distance(latitude, longitude, lat_south, lon_south);
+                ele_weight.push((ele, weight_south));
+            }
+            Err(e) => ()
+        }
+        return ele_weight;
+    }
+
+    // TODO: left out coef and ONE_DEGREE constant(?)
+    fn distance(lat1: f32, lon1: f32, lat2: f32, lon2: f32) -> f32 {
+        let x = lat1 - lat2;
+        let y = lon1 - lon2;
+        return (x * x + y * y).sqrt();
     }
 }
 
@@ -162,16 +257,29 @@ fn test_get_file_name() {
 #[test]
 fn test_srtm() {
     let mut srtm = SRTM::new();
-
     // netherlands, sea-level
-    let sea_level_elevation = srtm.get_elevation(52.6028117, 5.2589886);
-    let stuttgart_elevation = srtm.get_elevation(48.7359657, 9.2466);
-    let himalaya_elevation = srtm.get_elevation(30.3089602, 81.0986149);
-    let lol_ele = srtm.get_elevation(48.66619, 9.251554);
+    let sea_level_elevation = srtm.get_elevation(52.6028117, 5.2589886, false);
+    let stuttgart_elevation = srtm.get_elevation(48.785631, 9.186167, false);
+    let himalaya_elevation = srtm.get_elevation(30.3089602, 81.0986149, false);
+    print!("{:?}", (sea_level_elevation.unwrap(), stuttgart_elevation.unwrap(), himalaya_elevation.unwrap()));
     assert!(sea_level_elevation.is_some());
     assert!(stuttgart_elevation.is_some());
-    assert!(himalaya_elevation.is_none());
-    assert!(sea_level_elevation.unwrap() < stuttgart_elevation.unwrap());
+    assert!(himalaya_elevation.is_some());
+    assert!(sea_level_elevation.unwrap() < stuttgart_elevation.unwrap() && stuttgart_elevation.unwrap() < himalaya_elevation.unwrap());
+}
+
+#[test]
+fn test_srtm_interpolate() {
+    let mut srtm = SRTM::new();
+    // netherlands, sea-level
+    let sea_level_elevation = srtm.get_elevation(52.6028117, 5.2589886, true);
+    let stuttgart_elevation = srtm.get_elevation(48.785631, 9.186167, true);
+    let himalaya_elevation = srtm.get_elevation(30.3089602, 81.0986149, true);
+    print!("{:?}", (sea_level_elevation.unwrap(), stuttgart_elevation.unwrap(), himalaya_elevation.unwrap()));
+    assert!(sea_level_elevation.is_some());
+    assert!(stuttgart_elevation.is_some());
+    assert!(himalaya_elevation.is_some());
+    assert!(sea_level_elevation.unwrap() < stuttgart_elevation.unwrap() && stuttgart_elevation.unwrap() < himalaya_elevation.unwrap());
 }
 
 #[test]
@@ -179,7 +287,4 @@ fn test_retrieve_srtm() {
     let name = SRTM::get_file_name(47.678926, 7.639213);
     assert_eq!(name, "N47E007");
     let result = SRTM::download_srtm_file(name.as_str()).unwrap();
-    println!("{:?}", result);
-    assert_eq!(result, ());
-    assert_eq!(1, 0);
 }

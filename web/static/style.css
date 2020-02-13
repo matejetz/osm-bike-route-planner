@@ -12,6 +12,23 @@ body {
 	width: 100%;
 }
 
+#elevationGraph {
+	z-index: 1001;
+}
+
+#graphContainer {
+	position: absolute;
+	display: none;
+	bottom: 16px;
+	right: 8px;
+	padding: 20px;
+	background: rgba(255,255,255,0.9);
+	color: #282828;
+	border-radius: 5px;
+	width: 500px;
+	z-index: 1000;
+}
+
 #info {
 	position: absolute;
 	top: 8px;
@@ -23,8 +40,12 @@ body {
 	width: 220px;
 	z-index: 1000;
 }
+
 #info h4 {
 	margin: 0 0 0;
+}
+
+.graph {
 }
 
 .toast {

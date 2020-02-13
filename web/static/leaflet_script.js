@@ -21,7 +21,8 @@ let startMarker;
 let endPoint;
 let endMarker;
 let tmpMarker;
-var last_path;
+let lastPath;
+let chart;
 let xhr = new XMLHttpRequest();
 
 function onMapClick(e) {
@@ -46,8 +47,8 @@ function setStart() {
         icon: greenIcon
     }).addTo(map);
     map.removeLayer(tmpMarker);
-    if (typeof last_path === 'object') {
-        map.removeLayer(last_path);
+    if (lastPath) {
+        map.removeLayer(lastPath);
     }
 }
 
@@ -64,9 +65,43 @@ function setEnd() {
         icon: redIcon
     }).addTo(map);
     map.removeLayer(tmpMarker);
-    if (typeof last_path === 'object') {
-        map.removeLayer(last_path);
+    if (lastPath) {
+        map.removeLayer(lastPath);
     }
+}
+
+function printElevation(elevationPoints) {
+    console.log(elevationPoints);
+    let graph = document.getElementById('elevationGraph').getContext('2d');
+    if (chart) {
+        chart.destroy()
+    }
+    chart = new Chart(graph, {
+        type: 'line',
+        data: {
+            labels: elevationPoints.map((ele, index) => index).filter((ele, index) => index % 5 === 0),
+            datasets: [{
+                label: 'Elevation in m',
+                data: elevationPoints.filter((ele, index) => index % 5 === 0),
+                backgroundColor: '#000',
+                borderColor: '#000',
+                fill: false,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: false
+                    }
+                }]
+            }
+        }
+    });
+    graphContainer = document.getElementById("graphContainer");
+    graphContainer.style.display = "block";
+    console.log('ok')
 }
 
 function query() {
@@ -75,8 +110,8 @@ function query() {
     hide_no_path_found();
     hide_select_start_and_end();
 
-    if (typeof last_path === 'object') {
-        map.removeLayer(last_path);
+    if (lastPath) {
+        map.removeLayer(lastPath);
     }
 
     if (typeof startPoint === 'undefined' || typeof endPoint === 'undefined') {
@@ -84,15 +119,17 @@ function query() {
         return;
     }
 
-    var xhr = new XMLHttpRequest();
+    let xhr = new XMLHttpRequest();
     xhr.open("POST", url + "dijkstra", true);
     xhr.setRequestHeader("Content-type", "application/json;charset=UTF-8");
 
     xhr.onreadystatechange = function () {
+        console.log(xhr.responseText);
         if (xhr.readyState === 4 && xhr.status === 200) {
-            var json = JSON.parse(xhr.responseText);
-            if (json.path != "") {
+            let json = JSON.parse(xhr.responseText);
+            if (json.path) {
                 printPath(json.path);
+                printElevation(json.path.map(node => node.elevation));
                 show_result(json.cost);
             } else {
                 show_no_path_found();
@@ -102,9 +139,9 @@ function query() {
         }
     };
 
-    var travel_type = document.getElementById("travel-type").value;
-    var optimization = document.getElementById("optimization").value == "distance";
-    var body = {
+    let travel_type = document.getElementById("travel-type").value;
+    let optimization = document.getElementById("optimization").value === "distance";
+    let body = {
         "start": {
             "latitude": startPoint.lat,
             "longitude": startPoint.lng
@@ -116,7 +153,7 @@ function query() {
         "travel_type": travel_type,
         "by_distance": optimization,
     };
-    var data = JSON.stringify(body);
+    let data = JSON.stringify(body);
     // console.log("request: " + data);
     xhr.send(data);
 }
@@ -124,9 +161,7 @@ function query() {
 
 function printPath(path) {
     // create [lat, lng] array for leaflet map
-    let points = path.map(function (node) {
-        return [node.latitude, node.longitude]
-    });
+    let points = path.map(node => [node.latitude, node.longitude]);
     off_track_start = L.polyline([startPoint, points[0]], {
 		'dashArray': 10,
 		'weight': 2
@@ -137,9 +172,9 @@ function printPath(path) {
 		'weight': 2
 	});
 
-    last_path = L.layerGroup([off_track_start, start_to_end, off_track_end]);
+    lastPath = L.layerGroup([off_track_start, start_to_end, off_track_end]);
 
-    map.addLayer(last_path);
+    map.addLayer(lastPath);
     map.fitBounds([startPoint, endPoint]);
 }
 

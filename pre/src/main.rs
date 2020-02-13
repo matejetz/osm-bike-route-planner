@@ -1,6 +1,7 @@
 extern crate bincode;
 extern crate osmpbfreader;
 extern crate serde;
+extern crate serde_json;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -35,7 +36,7 @@ struct Way {
 struct Node {
     latitude: f32,
     longitude: f32,
-    elevation: i16,
+    elevation: f32,
 }
 
 #[derive(Serialize, Debug)]
@@ -234,7 +235,7 @@ fn main() {
         Node {
             latitude: 0.0,
             longitude: 0.0,
-            elevation: 0,
+            elevation: 0.0,
         },
     );
     offset.resize(amount_nodes + 1, 0);
@@ -247,7 +248,7 @@ fn main() {
 
     let mut srtm = SRTM::new();
     // store all geo-information about the nodes
-    let mut latest_elevation_opt: Option<i16> = Some(0);
+    let mut latest_elevation_opt: Option<f32> = None;
     for block in pbf.blobs().map(|b| primitive_block_from_blob(&b.unwrap())) {
         let block = block.unwrap();
         for group in block.get_primitivegroup().iter() {
@@ -257,8 +258,7 @@ fn main() {
                     Some(our_id) => {
                         let latitude = node.decimicro_lat as f32 / 10_000_000.0;
                         let longitude = node.decimicro_lon as f32 / 10_000_000.0;
-                        println!("lat {}, lon {}", latitude, longitude);
-                        let elevation = match srtm.get_elevation(latitude, longitude) {
+                        let elevation = match srtm.get_elevation(latitude, longitude, true) {
                             Some(elevation) => {
                                 latest_elevation_opt = Some(elevation);
                                 elevation
@@ -272,6 +272,7 @@ fn main() {
                                 }
                             }
                         };
+                        println!("{:?}",(latitude, longitude, elevation));
                         nodes[*our_id] = Node {
                             // https://github.com/rust-lang/rfcs/blob/master/text/1682-field-init-shorthand.md
                             latitude,

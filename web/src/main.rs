@@ -30,10 +30,18 @@ pub struct Way {
 pub struct Node {
     latitude: f32,
     longitude: f32,
+    elevation: i16,
 }
 
+#[derive(Copy, Clone, Deserialize, Serialize, Debug)]
+pub struct Position {
+    latitude: f32,
+    longitude: f32,
+}
+
+
 #[derive(Deserialize, Debug)]
-struct Input {
+struct MapData {
     nodes: Vec<Node>,
     ways: Vec<Way>,
     offset: Vec<usize>,
@@ -42,8 +50,8 @@ struct Input {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Query {
-    start: Node,
-    end: Node,
+    start: Position,
+    end: Position,
     travel_type: String,
     by_distance: bool,
 }
@@ -57,8 +65,8 @@ struct Response {
 fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Response> {
     let total_time = Instant::now();
     // extract points
-    let start: &Node = &request.start;
-    let end: &Node = &request.end;
+    let start: &Position = &request.start;
+    let end: &Position = &request.end;
     let travel_type = match request.travel_type.as_ref() {
         "car" => 0,
         "bicycle" => 1,
@@ -84,7 +92,7 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Res
     let mut cost: String = "".to_string();
     match tmp {
         Some((path, path_cost)) => {
-            result = dijkstra.get_coordinates(path);
+            result = dijkstra.get_nodes(path);
             match by_distance {
                 false => {
                     if path_cost.trunc() >= 1.0 {
@@ -132,7 +140,7 @@ fn main() {
 
     // read file
     let mut f = BufReader::new(File::open(filename).unwrap());
-    let input: Input = deserialize_from(&mut f).unwrap();
+    let input: MapData = deserialize_from(&mut f).unwrap();
     let d = Graph::new(input.nodes, input.ways, input.offset, input.grid);
 
     let graph = web::Data::new(d);
