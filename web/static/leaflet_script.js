@@ -155,6 +155,7 @@ function query() {
 
     let travel_type = document.getElementById("travel-type").value;
     let optimization = document.getElementById("optimization").value === "distance";
+    let max_elevation = parseInt(document.getElementById("max-elevation").value);
     let body = {
         "start": {
             "latitude": startPoint.lat,
@@ -166,6 +167,7 @@ function query() {
         },
         "travel_type": travel_type,
         "by_distance": optimization,
+        "max_ele_rise": max_elevation
     };
     let data = JSON.stringify(body);
     // console.log("request: " + data);

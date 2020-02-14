@@ -4,18 +4,20 @@ extern crate bincode;
 extern crate serde;
 extern crate serde_json;
 
-mod graph;
-
-use actix_files as fs;
-use actix_web::{middleware, web, App, HttpServer};
-use bincode::deserialize_from;
-use graph::{Graph, DijkstraResult};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 use std::time::Instant;
+
+use actix_files as fs;
+use actix_web::{App, HttpServer, middleware, web};
+use bincode::deserialize_from;
+use serde::{Deserialize, Serialize};
+
+use graph::Graph;
+
+mod graph;
 
 #[derive(Copy, Clone, Deserialize, Debug)]
 pub struct Way {
@@ -54,6 +56,7 @@ struct Query {
     end: Position,
     travel_type: String,
     by_distance: bool,
+    max_ele_rise: i32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -74,6 +77,7 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Res
         _ => 0,
     };
     let by_distance: bool = request.by_distance;
+    let max_elevation = request.max_ele_rise;
     // println!("Start: {},{}", start.latitude, start.longitude);
     // println!("End: {},{}", end.latitude, end.longitude);
     // println!("travel_type: {}, by_distance: {}", travel_type, by_distance);
@@ -85,8 +89,7 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Res
     println!("### duration for get_point_id(): {:?}", timing_find.elapsed());
 
     let timing = Instant::now();
-    let max_elevation = 100.0;
-    let tmp = dijkstra.find_path(start_id, end_id, travel_type, by_distance, max_elevation);
+    let tmp = dijkstra.find_path(start_id, end_id, travel_type, by_distance, max_elevation as f32);
     println!("### duration for find_path(): {:?}", timing.elapsed());
 
     let result: Vec<Node>;
@@ -164,8 +167,8 @@ fn main() {
             .service(web::resource("/dijkstra").route(web::post().to(query)))
             .service(fs::Files::new("/", "./static/").index_file("index.html"))
     })
-    .bind("localhost:8080")
-    .unwrap()
-    .run()
-    .unwrap();
+        .bind("localhost:8080")
+        .unwrap()
+        .run()
+        .unwrap();
 }

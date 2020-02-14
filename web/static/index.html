@@ -29,8 +29,8 @@
 					<h4>Travel by</h4>
 				</label-big>
 				<select id="travel-type">
-					<option value="car">car</option>
 					<option value="bicycle">bicycle</option>
+					<option value="car">car</option>
 					<option value="foot">foot</option>
 				</select>
 			</div>
@@ -42,6 +42,12 @@
 					<option value="time">time</option>
 					<option value="distance">distance</option>
 				</select>
+			</div>
+			<div class="input-wrapper">
+				<label-big for="end-time">
+					<h4>Max. elevation</h4>
+				</label-big>
+				<input style="position: relative; width: 44%; margin-left: -1px; top: -12px" id="max-elevation" value="100">
 			</div>
 			<button class="info-button search" onclick="query()">Find Path</button>
 		</div>

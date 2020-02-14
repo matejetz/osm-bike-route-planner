@@ -237,7 +237,6 @@ impl Graph {
                 Some(result) => result,
                 None => return Err(format!("No shortest path for multiplier {} was found", multiplier))
             };
-            println!("is this always positive? {}", multiplier);
             if multiplier == previous_multiplier {
                 return Ok(ele_result);
             } else if multiplicator_result.ele_rise < max_elevation {
@@ -299,20 +298,20 @@ impl Graph {
                     _ => unreachable!(),
                 }
                 // calculate costs
-                let new_distance = distance + self.get_edge_distance(current_way, travel_type, use_distance);
-                let new_ele_rise = ele_rise + self.get_edge_elevation_rise(current_way);
+                let additional_distance = self.get_edge_distance(current_way, travel_type, use_distance);
+                let additional_ele_rise = self.get_edge_elevation_rise(current_way);
                 let next = State {
                     node: current_way.target,
                     cost: cost + match min_of {
-                        Dijkstra::Distance => new_distance,
-                        Dijkstra::Elevation => new_ele_rise,
+                        Dijkstra::Distance => additional_distance,
+                        Dijkstra::Elevation => additional_ele_rise,
                         Dijkstra::Multiplier => match multiplier {
                             Some(multiplier) => self.get_edge_weight(current_way, travel_type, use_distance, multiplier),
                             None => panic!("Dijkstra was called in multiplier mode but no multiplier was provided")
                         }
                     },
-                    distance: new_distance,
-                    ele_rise: new_ele_rise,
+                    distance: distance + additional_distance,
+                    ele_rise: ele_rise + additional_ele_rise,
                 };
 
                 // add way to heap
