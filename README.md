@@ -1,7 +1,8 @@
 # OSM Bike Route Planner
 by Simon Matejetz
 
-This project was part of "Lab Course: Algorithms for OSM Data" and is forked from the group project with Felix Buehler.
+This project was part of "Lab Course: Algorithms for OSM Data" and is forked from the previous group project with Felix Buehler.
+It adds elevation data from the NASAs SRTM3 data-collection to the parsed graph and replaces the naive-dijkstra shortest-path algorithm with a constrained shortest path algorithm to find a suitable way (low upward slope as well as low distance) for bike tours (to some extend also usable for car and walking routes).
 
 This repository consists of two programms:
 
