@@ -6,10 +6,9 @@ use std::usize;
 use Node;
 use Way;
 
-// 2^18
-const COST_MULTIPLICATOR: usize = 262144;
 // First three digits of coordinates are used for the grid hashing
 const GRID_MULTIPLICATOR: usize = 100;
+const MAX_F32: f32 = 3.40282347E+38f32;
 
 #[derive(Clone)]
 pub struct Graph {
@@ -19,16 +18,46 @@ pub struct Graph {
     grid: HashMap<(usize, usize), Vec<usize>>,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Clone)]
+pub struct DijkstraResult {
+    pub path: Vec<usize>,
+    pub distance: f32,
+    pub ele_rise: f32,
+}
+
+pub enum Dijkstra {
+    Distance,
+    Elevation,
+    Multiplier,
+}
+
+#[derive(Copy, Clone)]
 struct State {
     node: usize,
-    cost: usize,
+    cost: f32,
+    distance: f32,
+    ele_rise: f32,
 }
+
+impl PartialEq for State {
+    fn eq(&self, other: &Self) -> bool {
+        return self.node == other.node && self.cost == other.cost;
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        return !self.eq(other);
+    }
+}
+
+impl Eq for State {}
 
 // Manually implement Ord so we get a min-heap instead of a max-heap
 impl Ord for State {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.cost.cmp(&self.cost)
+        let cmp = other.cost - self.cost;
+        if cmp == 0.0 { return Ordering::Equal };
+        if cmp > 0.0 { return Ordering::Greater }
+        return Ordering::Less
     }
 }
 
@@ -85,13 +114,28 @@ impl Graph {
 
     /// converts node ids to node-coordinates
     pub fn get_nodes(&self, path: Vec<usize>) -> Vec<Node> {
-        return path.iter().map(|x| self.nodes[*x]).collect::<Vec<Node>>();
+        return path.iter().map(|&x| self.nodes[x]).collect::<Vec<Node>>();
+    }
+
+    pub fn get_node(&self, id: usize) -> Node {
+        return self.nodes[id];
+    }
+
+    fn get_edge_elevation_rise(&self, way: Way) -> f32 {
+        let source_ele = self.get_node(way.source).elevation;
+        let target_ele = self.get_node(way.target).elevation;
+        let delta = target_ele - source_ele;
+        return if delta > 0.0 {
+            delta
+        } else {
+            0.0
+        };
     }
 
     /// returns the edge weight from source to target
-    fn get_edge_weight(&self, way: Way, travel_type: usize, use_distance: bool) -> usize {
-        if use_distance {
-            return way.distance;
+    fn get_edge_distance(&self, way: Way, travel_type: usize, use_distance: bool) -> f32 {
+        return if use_distance {
+            way.distance
         } else {
             if way.speed == 0 {
                 return way.distance;
@@ -103,8 +147,14 @@ impl Graph {
                 2 => 7,
                 _ => unreachable!(),
             };
-            return way.distance / speed;
-        }
+            way.distance / speed as f32
+        };
+    }
+
+    fn get_edge_weight(&self, way: Way, travel_type: usize, use_distance: bool, multiplier: f32) -> f32 {
+        let edge_distance = self.get_edge_distance(way, travel_type, use_distance);
+        let edge_ele_rise = self.get_edge_elevation_rise(way);
+        return edge_distance + (multiplier * edge_ele_rise);
     }
 
     fn is_valid_node_for_travel_type(&self, node_id: usize, allowed_types: &Vec<usize>) -> bool {
@@ -162,17 +212,56 @@ impl Graph {
         end: usize,
         travel_type: usize,
         use_distance: bool,
-    ) -> Option<(Vec<usize>, f32)> {
-        let mut dist = vec![(usize::MAX, None); self.nodes.len()];
+        max_elevation: f32,
+    ) -> Result<DijkstraResult, String> {
+        let mut distance_result = match self.dijkstra(Dijkstra::Distance, start, end, travel_type, use_distance, Option::None) {
+            Some(result) => result,
+            None => return Err("No shortest path after distance was found".to_string())
+        };
+        if distance_result.ele_rise < max_elevation {
+            return Ok(distance_result);
+        }
+
+        let mut ele_result = match self.dijkstra(Dijkstra::Elevation, start, end, travel_type, use_distance, Option::None) {
+            Some(result) => result,
+            None => return Err("No shortest path after elevation rise was found".to_string())
+        };
+        if ele_result.ele_rise > max_elevation {
+            return Err(format!("Path with least elevation rise has {}m, none with less than {}m available", ele_result.ele_rise, max_elevation));
+        }
+
+        let mut previous_multiplier = -1.0;
+        loop {
+            let multiplier = (distance_result.distance - ele_result.distance) / (ele_result.ele_rise - distance_result.ele_rise);
+            let multiplicator_result = match self.dijkstra(Dijkstra::Multiplier, start, end, travel_type, use_distance, Some(multiplier)) {
+                Some(result) => result,
+                None => return Err(format!("No shortest path for multiplier {} was found", multiplier))
+            };
+            println!("is this always positive? {}", multiplier);
+            if multiplier == previous_multiplier {
+                return Ok(ele_result);
+            } else if multiplicator_result.ele_rise < max_elevation {
+                ele_result = multiplicator_result;
+            } else {
+                distance_result = multiplicator_result;
+            }
+            previous_multiplier = multiplier;
+        }
+    }
+
+    fn dijkstra(&self, min_of: Dijkstra, start: usize, end: usize, travel_type: usize, use_distance: bool, multiplier: Option<f32>) -> Option<DijkstraResult> {
+        let mut dist = vec![(MAX_F32, None); self.nodes.len()];
 
         let mut heap = BinaryHeap::new();
-        dist[start] = (0, None);
+        dist[start] = (0.0, None);
         heap.push(State {
             node: start,
-            cost: 0,
+            cost: 0.0,
+            distance: 0.0,
+            ele_rise: 0.0,
         });
 
-        while let Some(State { node, cost }) = heap.pop() {
+        while let Some(State { node, cost, distance, ele_rise }) = heap.pop() {
             if node == end {
                 let mut path = Vec::with_capacity(dist.len() / 2);
                 let mut current_dist = dist[end];
@@ -182,7 +271,11 @@ impl Graph {
                     current_dist = dist[prev];
                 }
                 path.reverse();
-                return Some((path, cost as f32 / COST_MULTIPLICATOR as f32));
+                return Some(DijkstraResult {
+                    path,
+                    distance,
+                    ele_rise,
+                });
             }
             if cost > dist[node].0 {
                 continue;
@@ -206,10 +299,22 @@ impl Graph {
                     _ => unreachable!(),
                 }
                 // calculate costs
+                let new_distance = distance + self.get_edge_distance(current_way, travel_type, use_distance);
+                let new_ele_rise = ele_rise + self.get_edge_elevation_rise(current_way);
                 let next = State {
                     node: current_way.target,
-                    cost: cost + self.get_edge_weight(current_way, travel_type, use_distance),
+                    cost: cost + match min_of {
+                        Dijkstra::Distance => new_distance,
+                        Dijkstra::Elevation => new_ele_rise,
+                        Dijkstra::Multiplier => match multiplier {
+                            Some(multiplier) => self.get_edge_weight(current_way, travel_type, use_distance, multiplier),
+                            None => panic!("Dijkstra was called in multiplier mode but no multiplier was provided")
+                        }
+                    },
+                    distance: new_distance,
+                    ele_rise: new_ele_rise,
                 };
+
                 // add way to heap
                 if next.cost < dist[next.node].0 {
                     dist[next.node] = (next.cost, Some(node));
@@ -220,6 +325,7 @@ impl Graph {
         None
     }
 }
+
 
 /// get distance on earth surface using haversine formula
 fn calc_distance(lat_1: f32, long_1: f32, lat_2: f32, long_2: f32) -> f32 {

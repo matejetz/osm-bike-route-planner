@@ -9,7 +9,7 @@ mod graph;
 use actix_files as fs;
 use actix_web::{middleware, web, App, HttpServer};
 use bincode::deserialize_from;
-use graph::Graph;
+use graph::{Graph, DijkstraResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
@@ -22,7 +22,7 @@ pub struct Way {
     source: usize,
     target: usize,
     speed: usize,
-    distance: usize,
+    distance: f32,
     travel_type: usize,
 }
 
@@ -30,7 +30,7 @@ pub struct Way {
 pub struct Node {
     latitude: f32,
     longitude: f32,
-    elevation: i16,
+    elevation: f32,
 }
 
 #[derive(Copy, Clone, Deserialize, Serialize, Debug)]
@@ -85,31 +85,34 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Res
     println!("### duration for get_point_id(): {:?}", timing_find.elapsed());
 
     let timing = Instant::now();
-    let tmp = dijkstra.find_path(start_id, end_id, travel_type, by_distance);
+    let max_elevation = 100.0;
+    let tmp = dijkstra.find_path(start_id, end_id, travel_type, by_distance, max_elevation);
     println!("### duration for find_path(): {:?}", timing.elapsed());
 
     let result: Vec<Node>;
     let mut cost: String = "".to_string();
     match tmp {
-        Some((path, path_cost)) => {
-            result = dijkstra.get_nodes(path);
+        Ok(dr) => {
+            println!("elevation: {}", dr.ele_rise);
+            println!("distance: {}", dr.distance);
+            result = dijkstra.get_nodes(dr.path);
             match by_distance {
                 false => {
-                    if path_cost.trunc() >= 1.0 {
-                        cost = path_cost.trunc().to_string();
+                    if dr.distance.trunc() >= 1.0 {
+                        cost = dr.distance.trunc().to_string();
                         cost.push_str("h ");
                     }
-                    cost.push_str(&format!("{:.0}", path_cost.fract() * 60.0));
+                    cost.push_str(&format!("{:.0}", dr.distance.fract() * 60.0));
                     cost.push_str("min");
                 }
                 true => {
-                    cost = format!("{:.2}", path_cost);
+                    cost = format!("{:.2}", dr.distance);
                     cost.push_str("km");
                 }
             };
         }
-        None => {
-            println!("no path found");
+        Err(e) => {
+            println!("{}", e);
             result = Vec::<Node>::new();
             cost = 0.to_string();
         }

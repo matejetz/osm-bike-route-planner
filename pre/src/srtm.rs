@@ -1,5 +1,4 @@
 extern crate reqwest;
-extern crate tempfile;
 extern crate zip;
 
 use std::collections::HashMap;
@@ -180,6 +179,9 @@ impl GeoElevationFile {
     fn get_interpolated_elevation(&self, latitude: f32, longitude: f32) -> f32 {
         let mut ele_weight = self.get_elevation_weight_of_neighbors(latitude, longitude);
 
+        for x in &ele_weight {
+            println!("{:?}", x)
+        }
         // sum all weights in result
         let sum_weights: f32 = ele_weight.iter().map(|&e_w| e_w.1).sum();
         // return normalized sum
@@ -192,7 +194,7 @@ impl GeoElevationFile {
         match self.get_elevation_from_row_and_column(row, column) {
             Ok(ele) => {
                 let (lat_nearest, lon_nearest) = self.get_lat_and_lon(row, column);
-                let weight_nearest = Self::distance(latitude, longitude, lat_nearest, lon_nearest);
+                let weight_nearest = 1.0 / Self::distance(latitude, longitude, lat_nearest, lon_nearest);
                 ele_weight.push((ele, weight_nearest));
             }
             Err(e) => ()
@@ -201,7 +203,7 @@ impl GeoElevationFile {
         match self.get_elevation_from_row_and_column(row, column - 1) {
             Ok(ele) => {
                 let (lat_west, lon_west) = self.get_lat_and_lon(row, column - 1);
-                let weight_west = Self::distance(latitude, longitude, lat_west, lon_west);
+                let weight_west = 1.0 / Self::distance(latitude, longitude, lat_west, lon_west);
                 ele_weight.push((ele, weight_west));
             }
             Err(e) => ()
@@ -210,7 +212,7 @@ impl GeoElevationFile {
         match self.get_elevation_from_row_and_column(row, column + 1) {
             Ok(ele) => {
                 let (lat_east, lon_east) = self.get_lat_and_lon(row, column + 1);
-                let weight_east = Self::distance(latitude, longitude, lat_east, lon_east);
+                let weight_east = 1.0 / Self::distance(latitude, longitude, lat_east, lon_east);
                 ele_weight.push((ele, weight_east));
             }
             Err(e) => ()
@@ -219,7 +221,7 @@ impl GeoElevationFile {
         match self.get_elevation_from_row_and_column(row - 1, column) {
             Ok(ele) => {
                 let (lat_north, lon_north) = self.get_lat_and_lon(row - 1, column);
-                let weight_north = Self::distance(latitude, longitude, lat_north, lon_north);
+                let weight_north = 1.0 / Self::distance(latitude, longitude, lat_north, lon_north);
                 ele_weight.push((ele, weight_north));
             }
             Err(e) => ()
@@ -228,7 +230,7 @@ impl GeoElevationFile {
         match self.get_elevation_from_row_and_column(row + 1, column) {
             Ok(ele) => {
                 let (lat_south, lon_south) = self.get_lat_and_lon(row + 1, column);
-                let weight_south = Self::distance(latitude, longitude, lat_south, lon_south);
+                let weight_south = 1.0 / Self::distance(latitude, longitude, lat_south, lon_south);
                 ele_weight.push((ele, weight_south));
             }
             Err(e) => ()

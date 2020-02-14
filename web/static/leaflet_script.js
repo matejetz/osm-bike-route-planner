@@ -72,6 +72,20 @@ function setEnd() {
 
 function printElevation(elevationPoints) {
     console.log(elevationPoints);
+    let total_hill = elevationPoints.reduce((total, currentValue, currentIndex, elevation) => {
+        if (currentIndex === 0) {
+            return 0
+        }
+        let delta = currentValue - elevation[currentIndex - 1];
+        if (delta > 0 ) {
+            return total + delta
+        } else {
+            return total
+        }
+    }, 0);
+    let result = document.getElementById('totalElevation');
+    result.innerText = 'Total: ' + total_hill.toFixed(2) + 'm';
+    console.log('total elevation', total_hill);
     let graph = document.getElementById('elevationGraph').getContext('2d');
     if (chart) {
         chart.destroy()
@@ -79,10 +93,10 @@ function printElevation(elevationPoints) {
     chart = new Chart(graph, {
         type: 'line',
         data: {
-            labels: elevationPoints.map((ele, index) => index).filter((ele, index) => index % 5 === 0),
+            labels: elevationPoints.map((ele, index) => index),
             datasets: [{
                 label: 'Elevation in m',
-                data: elevationPoints.filter((ele, index) => index % 5 === 0),
+                data: elevationPoints,
                 backgroundColor: '#000',
                 borderColor: '#000',
                 fill: false,

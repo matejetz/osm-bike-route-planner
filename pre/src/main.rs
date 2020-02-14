@@ -18,8 +18,6 @@ use srtm::SRTM;
 mod tests;
 mod srtm;
 
-// 2^18
-const COST_MULTIPLICATOR: usize = 262144;
 // First three digits of coordinates are used for the grid hashing
 const GRID_MULTIPLICATOR: usize = 100;
 
@@ -28,7 +26,7 @@ struct Way {
     source: usize,
     target: usize,
     speed: usize,
-    distance: usize,
+    distance: f32,
     travel_type: usize,
 }
 
@@ -57,6 +55,14 @@ fn parse_speed(max_speed: &str, highway: &str) -> usize {
             }
         },
     }
+}
+
+pub fn parse_one_way(s: &str) -> (bool, bool) {
+    return match s {
+        "yes" => (true, false),
+        "-1" => (true, true),
+        _ => (false, false),
+    };
 }
 
 /// resolves the int value from a dirty string that can't be resolved by default parsing
@@ -194,6 +200,13 @@ fn main() {
                         max_speed = way.tags.get("maxspeed").unwrap().trim();
                     }
                     let speed = parse_speed(max_speed, highway);
+
+                    let mut one_way: &str = "";
+                    if way.tags.contains_key("oneway") {
+                        one_way = way.tags.get("oneway").unwrap().trim();
+                    }
+                    let (one_way, reverse_dir): (bool, bool) = parse_one_way(one_way);
+
                     // get all node IDs from ways without duplication
                     let mut prev_id: usize;
                     let osm_id = way.nodes[0].0;
@@ -215,13 +228,24 @@ fn main() {
                             id = amount_nodes;
                             amount_nodes += 1;
                         }
-                        ways.push(Way {
-                            source: prev_id,
-                            target: id,
-                            speed: speed,
-                            distance: 0,
-                            travel_type: travel_type,
-                        });
+                        if (!reverse_dir && one_way) || !one_way {
+                            ways.push(Way {
+                                source: prev_id,
+                                target: id,
+                                speed: speed,
+                                distance: 0.0,
+                                travel_type: travel_type,
+                            });
+                        }
+                        if (reverse_dir && one_way) || !one_way {
+                            ways.push(Way {
+                                source: id,
+                                target: prev_id,
+                                speed: speed,
+                                distance: 0.0,
+                                travel_type: travel_type,
+                            });
+                        }
                         prev_id = id;
                     }
                 }
@@ -272,7 +296,6 @@ fn main() {
                                 }
                             }
                         };
-                        println!("{:?}",(latitude, longitude, elevation));
                         nodes[*our_id] = Node {
                             // https://github.com/rust-lang/rfcs/blob/master/text/1682-field-init-shorthand.md
                             latitude,
@@ -304,13 +327,12 @@ fn main() {
     //let mut counter: usize = 0;
 
     for i in 0..ways.len() {
-        let distance = calc_distance(
+        ways[i].distance = calc_distance(
             nodes[ways[i].source].latitude,
             nodes[ways[i].source].longitude,
             nodes[ways[i].target].latitude,
             nodes[ways[i].target].longitude,
         );
-        ways[i].distance = (distance * COST_MULTIPLICATOR as f32) as usize;
         /*
         if ways[i].distance == 0 {
             counter += 1;

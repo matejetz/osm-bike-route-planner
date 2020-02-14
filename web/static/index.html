@@ -45,7 +45,10 @@
 			</div>
 			<button class="info-button search" onclick="query()">Find Path</button>
 		</div>
-		<div id="graphContainer"><canvas id="elevationGraph"></canvas></div>
+		<div id="graphContainer">
+			<canvas id="elevationGraph"></canvas>
+			<div id="totalElevation"></div>
+		</div>
 		<div id="map"></div>
 		<div class="toast" id="invalid-request" style="display:none" onclick="hide_invalid_request()">Invalid Request</div>
 		<div class="toast" id="no-path-found" style="display:none" onclick="hide_no_path_found()">No Path found</div>
