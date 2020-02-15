@@ -47,15 +47,15 @@
 				<label-big for="end-time">
 					<h4>Max. elevation</h4>
 				</label-big>
-				<input style="position: relative; width: 44%; margin-left: -1px; top: -12px" id="max-elevation" value="100">
+				<input style="position: relative; width: 44%; top: -12px" id="max-elevation" value="100">
 			</div>
 			<div class="input-wrapper">
-				<label-big for="end-time">
+				<label-big style="position: relative; top: -6px" for="end-time">
 					<h4>Show all paths</h4>
 				</label-big>
-				<input type="checkbox" id="allPaths">
+				<input style="position: relative; left:35px; top: -2px; width: 20px; height: 20px" type="checkbox" id="all-paths">
 			</div>
-			<button class="info-button search" onclick="query()">Find Path</button>
+			<button style="height: 40px; font-size: 15px" class="info-button search" onclick="query()">Find Path</button>
 		</div>
 		<div id="graphContainer">
 			<canvas id="elevationGraph"></canvas>

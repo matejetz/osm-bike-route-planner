@@ -57,6 +57,7 @@ struct Query {
     travel_type: String,
     by_distance: bool,
     max_ele_rise: i32,
+    all_paths: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -65,7 +66,7 @@ struct Response {
     cost: String,
 }
 
-fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Response> {
+fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec<Response>> {
     let total_time = Instant::now();
     // extract points
     let start: &Position = &request.start;
@@ -78,6 +79,7 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Res
     };
     let by_distance: bool = request.by_distance;
     let max_elevation = request.max_ele_rise;
+    let all_paths = request.all_paths;
     // println!("Start: {},{}", start.latitude, start.longitude);
     // println!("End: {},{}", end.latitude, end.longitude);
     // println!("travel_type: {}, by_distance: {}", travel_type, by_distance);
@@ -89,44 +91,48 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Res
     println!("### duration for get_point_id(): {:?}", timing_find.elapsed());
 
     let timing = Instant::now();
-    let tmp = dijkstra.find_path(start_id, end_id, travel_type, by_distance, max_elevation as f32);
+
+    let tmp = dijkstra.find_path(start_id, end_id, travel_type, by_distance, max_elevation as f32, all_paths);
     println!("### duration for find_path(): {:?}", timing.elapsed());
 
-    let result: Vec<Node>;
-    let mut cost: String = "".to_string();
+    let mut results = Vec::<Response>::new();
     match tmp {
-        Ok(dr) => {
-            println!("elevation: {}", dr.ele_rise);
-            println!("distance: {}", dr.distance);
-            result = dijkstra.get_nodes(dr.path);
-            match by_distance {
-                false => {
-                    if dr.distance.trunc() >= 1.0 {
-                        cost = dr.distance.trunc().to_string();
-                        cost.push_str("h ");
+        Ok(drs) => {
+            println!("amount {}, all paths {}", drs.len(), all_paths);
+            for dr in drs {
+                let result: Vec<Node>;
+                let mut cost: String = "".to_string();
+                println!("elevation: {}", dr.ele_rise);
+                println!("distance: {}", dr.distance);
+                result = dijkstra.get_nodes(dr.path);
+                match by_distance {
+                    false => {
+                        if dr.distance.trunc() >= 1.0 {
+                            cost = dr.distance.trunc().to_string();
+                            cost.push_str("h ");
+                        }
+                        cost.push_str(&format!("{:.0}", dr.distance.fract() * 60.0));
+                        cost.push_str("min");
                     }
-                    cost.push_str(&format!("{:.0}", dr.distance.fract() * 60.0));
-                    cost.push_str("min");
-                }
-                true => {
-                    cost = format!("{:.2}", dr.distance);
-                    cost.push_str("km");
-                }
-            };
+                    true => {
+                        cost = format!("{:.2}", dr.distance);
+                        cost.push_str("km");
+                    }
+                };
+                results.push(Response{
+                    path: result,
+                    cost
+                })
+            }
         }
         Err(e) => {
             println!("{}", e);
-            result = Vec::<Node>::new();
-            cost = 0.to_string();
         }
     }
 
     println!("### answered request in: {:?}", total_time.elapsed());
 
-    return web::Json(Response {
-        path: result,
-        cost: cost,
-    });
+    return web::Json(results);
 }
 
 fn main() {

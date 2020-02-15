@@ -205,7 +205,7 @@ impl Graph {
         }
     }
 
-    /// executes dijkstra
+    /// executes dijkstra TODO: pull out method for getting multiple paths
     pub fn find_path(
         &self,
         start: usize,
@@ -213,13 +213,15 @@ impl Graph {
         travel_type: usize,
         use_distance: bool,
         max_elevation: f32,
-    ) -> Result<DijkstraResult, String> {
+        all_paths: bool,
+    ) -> Result<Vec<DijkstraResult>, String> {
         let mut distance_result = match self.dijkstra(Dijkstra::Distance, start, end, travel_type, use_distance, Option::None) {
             Some(result) => result,
             None => return Err("No shortest path after distance was found".to_string())
         };
-        if distance_result.ele_rise < max_elevation {
-            return Ok(distance_result);
+
+        if !all_paths && distance_result.ele_rise < max_elevation {
+            return Ok(vec![distance_result]);
         }
 
         let mut ele_result = match self.dijkstra(Dijkstra::Elevation, start, end, travel_type, use_distance, Option::None) {
@@ -231,21 +233,43 @@ impl Graph {
         }
 
         let mut previous_multiplier = -1.0;
+        let mut multiplier = 1.0;
+        let mut found_paths = Vec::<DijkstraResult>::new();
+        let mut last_smaller_ele = DijkstraResult{ele_rise: 0.0, distance: 0.0, path: Vec::new()};
         loop {
-            let multiplier = (distance_result.distance - ele_result.distance) / (ele_result.ele_rise - distance_result.ele_rise);
+            println!("multiplier {}", multiplier);
             let multiplicator_result = match self.dijkstra(Dijkstra::Multiplier, start, end, travel_type, use_distance, Some(multiplier)) {
                 Some(result) => result,
                 None => return Err(format!("No shortest path for multiplier {} was found", multiplier))
             };
+            if multiplicator_result.ele_rise - distance_result.ele_rise == 0.0 {
+                if !all_paths {
+                    println!("was same {} {} {}", multiplicator_result.distance, multiplicator_result.ele_rise, multiplier);
+                    return Ok(vec![multiplicator_result]);
+                }
+                // distance identity also in elevation range
+                found_paths.push(multiplicator_result.clone());
+                break;
+            }
+            multiplier = (distance_result.distance - multiplicator_result.distance) / (multiplicator_result.ele_rise - distance_result.ele_rise);
             if multiplier == previous_multiplier {
-                return Ok(ele_result);
-            } else if multiplicator_result.ele_rise < max_elevation {
-                ele_result = multiplicator_result;
-            } else {
-                distance_result = multiplicator_result;
+                if !all_paths {
+                    return Ok(vec![multiplicator_result]);
+                }
+                break;
+            } else if multiplicator_result.ele_rise <= max_elevation {
+                last_smaller_ele = multiplicator_result.clone();
+                found_paths.push(multiplicator_result);
+            } else if multiplicator_result.ele_rise > max_elevation {
+                if all_paths {
+                    break;
+                } else {
+                    return Ok(vec![last_smaller_ele])
+                }
             }
             previous_multiplier = multiplier;
         }
+        return Ok(found_paths);
     }
 
     fn dijkstra(&self, min_of: Dijkstra, start: usize, end: usize, travel_type: usize, use_distance: bool, multiplier: Option<f32>) -> Option<DijkstraResult> {

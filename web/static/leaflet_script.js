@@ -77,7 +77,7 @@ function printElevation(elevationPoints) {
             return 0
         }
         let delta = currentValue - elevation[currentIndex - 1];
-        if (delta > 0 ) {
+        if (delta > 0) {
             return total + delta
         } else {
             return total
@@ -141,12 +141,17 @@ function query() {
         console.log(xhr.responseText);
         if (xhr.readyState === 4 && xhr.status === 200) {
             let json = JSON.parse(xhr.responseText);
-            if (json.path) {
-                printPath(json.path);
-                printElevation(json.path.map(node => node.elevation));
-                showResult(json.cost);
-            } else {
-                showNoPathFound();
+            console.log(json);
+            for (result of json) {
+                console.log(result);
+                if (result.path) {
+                    console.log(result.path);
+                    printPath(result.path);
+                    printElevation(result.path.map(node => node.elevation));
+                    showResult(result.cost);
+                } else {
+                    showNoPathFound();
+                }
             }
         } else if (xhr.readyState === 4) {
             showInvalidRequest();
@@ -169,7 +174,7 @@ function query() {
         "travel_type": travelType,
         "by_distance": optimization,
         "max_ele_rise": maxElevation,
-        "all_paths":allPaths
+        "all_paths": allPaths
     };
     let data = JSON.stringify(body);
     // console.log("request: " + data);
@@ -181,14 +186,14 @@ function printPath(path) {
     // create [lat, lng] array for leaflet map
     let points = path.map(node => [node.latitude, node.longitude]);
     offTrackStart = L.polyline([startPoint, points[0]], {
-		'dashArray': 10,
-		'weight': 2
+        'dashArray': 10,
+        'weight': 2
     });
     startToEnd = L.polyline(points);
     offTrackEnd = L.polyline([points[points.length - 1], endPoint], {
-		'dashArray': 10,
-		'weight': 2
-	});
+        'dashArray': 10,
+        'weight': 2
+    });
 
     lastPath = L.layerGroup([offTrackStart, startToEnd, offTrackEnd]);
 
