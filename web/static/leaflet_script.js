@@ -72,7 +72,7 @@ function setEnd() {
 
 function printElevation(elevationPoints) {
     console.log(elevationPoints);
-    let total_hill = elevationPoints.reduce((total, currentValue, currentIndex, elevation) => {
+    let totalHill = elevationPoints.reduce((total, currentValue, currentIndex, elevation) => {
         if (currentIndex === 0) {
             return 0
         }
@@ -84,8 +84,8 @@ function printElevation(elevationPoints) {
         }
     }, 0);
     let result = document.getElementById('totalElevation');
-    result.innerText = 'Total: ' + total_hill.toFixed(2) + 'm';
-    console.log('total elevation', total_hill);
+    result.innerText = 'Total: ' + totalHill.toFixed(2) + 'm';
+    console.log('total elevation', totalHill);
     let graph = document.getElementById('elevationGraph').getContext('2d');
     if (chart) {
         chart.destroy()
@@ -119,17 +119,17 @@ function printElevation(elevationPoints) {
 }
 
 function query() {
-    hide_result();
-    hide_invalid_request();
-    hide_no_path_found();
-    hide_select_start_and_end();
+    hideResult();
+    hideInvalidRequest();
+    hideNoPathFound();
+    hideSelectStartAndEnd();
 
     if (lastPath) {
         map.removeLayer(lastPath);
     }
 
     if (typeof startPoint === 'undefined' || typeof endPoint === 'undefined') {
-        show_select_start_and_end();
+        showSelectStartAndEnd();
         return;
     }
 
@@ -144,18 +144,19 @@ function query() {
             if (json.path) {
                 printPath(json.path);
                 printElevation(json.path.map(node => node.elevation));
-                show_result(json.cost);
+                showResult(json.cost);
             } else {
-                show_no_path_found();
+                showNoPathFound();
             }
         } else if (xhr.readyState === 4) {
-            show_invalid_request();
+            showInvalidRequest();
         }
     };
 
-    let travel_type = document.getElementById("travel-type").value;
+    let travelType = document.getElementById("travel-type").value;
     let optimization = document.getElementById("optimization").value === "distance";
-    let max_elevation = parseInt(document.getElementById("max-elevation").value);
+    let maxElevation = parseInt(document.getElementById("max-elevation").value);
+    let allPaths = document.getElementById("all-paths").checked
     let body = {
         "start": {
             "latitude": startPoint.lat,
@@ -165,9 +166,10 @@ function query() {
             "latitude": endPoint.lat,
             "longitude": endPoint.lng
         },
-        "travel_type": travel_type,
+        "travel_type": travelType,
         "by_distance": optimization,
-        "max_ele_rise": max_elevation
+        "max_ele_rise": maxElevation,
+        "all_paths":allPaths
     };
     let data = JSON.stringify(body);
     // console.log("request: " + data);
@@ -178,63 +180,63 @@ function query() {
 function printPath(path) {
     // create [lat, lng] array for leaflet map
     let points = path.map(node => [node.latitude, node.longitude]);
-    off_track_start = L.polyline([startPoint, points[0]], {
+    offTrackStart = L.polyline([startPoint, points[0]], {
 		'dashArray': 10,
 		'weight': 2
     });
-    start_to_end = L.polyline(points);
-    off_track_end = L.polyline([points[points.length - 1], endPoint], {
+    startToEnd = L.polyline(points);
+    offTrackEnd = L.polyline([points[points.length - 1], endPoint], {
 		'dashArray': 10,
 		'weight': 2
 	});
 
-    lastPath = L.layerGroup([off_track_start, start_to_end, off_track_end]);
+    lastPath = L.layerGroup([offTrackStart, startToEnd, offTrackEnd]);
 
     map.addLayer(lastPath);
     map.fitBounds([startPoint, endPoint]);
 }
 
 
-function show_invalid_request() {
+function showInvalidRequest() {
     document.getElementById("invalid-request").style.display = "block";
 }
 
-function hide_invalid_request() {
+function hideInvalidRequest() {
     var x = document.getElementById("invalid-request");
     if (x.style.display === "block") {
         x.style.display = "none";
     }
 }
 
-function show_no_path_found() {
+function showNoPathFound() {
     document.getElementById("no-path-found").style.display = "block";
 }
 
-function hide_no_path_found() {
+function hideNoPathFound() {
     var x = document.getElementById("no-path-found");
     if (x.style.display === "block") {
         x.style.display = "none";
     }
 }
 
-function show_select_start_and_end() {
+function showSelectStartAndEnd() {
     document.getElementById("select-start-and-end").style.display = "block";
 }
 
-function hide_select_start_and_end() {
+function hideSelectStartAndEnd() {
     var x = document.getElementById("select-start-and-end");
     if (x.style.display === "block") {
         x.style.display = "none";
     }
 }
 
-function show_result(costs) {
+function showResult(costs) {
     var tmp = document.getElementById("result")
     tmp.innerHTML = costs;
     tmp.style.display = "block";
 }
 
-function hide_result() {
+function hideResult() {
     var x = document.getElementById("result");
     if (x.style.display === "block") {
         x.style.display = "none";
