@@ -21,9 +21,17 @@ let startMarker;
 let endPoint;
 let endMarker;
 let tmpMarker;
-let lastPath;
+let lastPaths = [];
 let chart;
 let xhr = new XMLHttpRequest();
+
+let EDGE_COLORS = ['black','red','green','blue','orange','yellow'];
+let edge_color_count = 0;
+
+function get_next_edge_color() {
+    // looping over edge colors
+    return EDGE_COLORS[edge_color_count++ % EDGE_COLORS.length]
+}
 
 function onMapClick(e) {
     if (tmpMarker) {
@@ -47,8 +55,11 @@ function setStart() {
         icon: greenIcon
     }).addTo(map);
     map.removeLayer(tmpMarker);
-    if (lastPath) {
-        map.removeLayer(lastPath);
+    if (lastPaths.length > 0) {
+        for (let path of lastPaths) {
+            map.removeLayer(path);
+        }
+        lastPaths = []
     }
 }
 
@@ -65,8 +76,11 @@ function setEnd() {
         icon: redIcon
     }).addTo(map);
     map.removeLayer(tmpMarker);
-    if (lastPath) {
-        map.removeLayer(lastPath);
+    if (lastPaths.length > 0) {
+        for (let path of lastPaths) {
+            map.removeLayer(path);
+        }
+        lastPaths = []
     }
 }
 
@@ -124,8 +138,11 @@ function query() {
     hideNoPathFound();
     hideSelectStartAndEnd();
 
-    if (lastPath) {
-        map.removeLayer(lastPath);
+    if (lastPaths.length > 1) {
+        for (let path of lastPaths) {
+            map.removeLayer(path);
+        }
+        lastPaths = []
     }
 
     if (typeof startPoint === 'undefined' || typeof endPoint === 'undefined') {
@@ -138,12 +155,13 @@ function query() {
     xhr.setRequestHeader("Content-type", "application/json;charset=UTF-8");
 
     xhr.onreadystatechange = function () {
-        console.log(xhr.responseText);
+        console.log('complete response', xhr.responseText);
         if (xhr.readyState === 4 && xhr.status === 200) {
             let json = JSON.parse(xhr.responseText);
-            console.log(json);
+            console.log('complete response json', json);
+            console.log('result amount', json.length)
             for (result of json) {
-                console.log(result);
+                console.log('single result', result);
                 if (result.path) {
                     console.log(result.path);
                     printPath(result.path);
@@ -181,7 +199,7 @@ function query() {
     xhr.send(data);
 }
 
-
+// TODO:
 function printPath(path) {
     // create [lat, lng] array for leaflet map
     let points = path.map(node => [node.latitude, node.longitude]);
@@ -190,14 +208,17 @@ function printPath(path) {
         'weight': 2
     });
     startToEnd = L.polyline(points);
+    startToEnd.setStyle({
+        color: get_next_edge_color()
+    });
     offTrackEnd = L.polyline([points[points.length - 1], endPoint], {
         'dashArray': 10,
         'weight': 2
     });
+    newPath = L.layerGroup([offTrackStart, startToEnd, offTrackEnd])
 
-    lastPath = L.layerGroup([offTrackStart, startToEnd, offTrackEnd]);
-
-    map.addLayer(lastPath);
+    lastPaths.push(newPath);
+    map.addLayer(newPath);
     map.fitBounds([startPoint, endPoint]);
 }
 

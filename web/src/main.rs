@@ -98,7 +98,6 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec
     let mut results = Vec::<Response>::new();
     match tmp {
         Ok(drs) => {
-            println!("amount {}, all paths {}", drs.len(), all_paths);
             for dr in drs {
                 let result: Vec<Node>;
                 let mut cost: String = "".to_string();
@@ -130,8 +129,8 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec
         }
     }
 
+    println!("result size: {}", results.len());
     println!("### answered request in: {:?}", total_time.elapsed());
-
     return web::Json(results);
 }
 
