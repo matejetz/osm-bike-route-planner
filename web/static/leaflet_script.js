@@ -25,7 +25,7 @@ let lastPaths = [];
 let chart;
 let xhr = new XMLHttpRequest();
 
-let EDGE_COLORS = ['black','red','green','blue','orange','yellow'];
+let EDGE_COLORS = ['black','red','green','blue','orange','yellow', 'purple', 'pink', 'gold', 'tomato', 'olivedrab'];
 let edge_color_count = 0;
 
 function get_next_edge_color() {
@@ -84,22 +84,10 @@ function setEnd() {
     }
 }
 
-function printElevation(elevationPoints) {
+function showElevationGraph(elevationPoints, totalElevation, color) {
     console.log(elevationPoints);
-    let totalHill = elevationPoints.reduce((total, currentValue, currentIndex, elevation) => {
-        if (currentIndex === 0) {
-            return 0
-        }
-        let delta = currentValue - elevation[currentIndex - 1];
-        if (delta > 0) {
-            return total + delta
-        } else {
-            return total
-        }
-    }, 0);
     let result = document.getElementById('totalElevation');
-    result.innerText = 'Total: ' + totalHill.toFixed(2) + 'm';
-    console.log('total elevation', totalHill);
+    result.innerText = 'Total: ' + totalElevation.toFixed(2) + 'm';
     let graph = document.getElementById('elevationGraph').getContext('2d');
     if (chart) {
         chart.destroy()
@@ -111,8 +99,8 @@ function printElevation(elevationPoints) {
             datasets: [{
                 label: 'Elevation in m',
                 data: elevationPoints,
-                backgroundColor: '#000',
-                borderColor: '#000',
+                backgroundColor: color,
+                borderColor: color,
                 fill: false,
                 pointRadius: 0
             }]
@@ -129,9 +117,9 @@ function printElevation(elevationPoints) {
     });
     graphContainer = document.getElementById("graphContainer");
     graphContainer.style.display = "block";
-    console.log('ok')
 }
 
+//TODO: First create paths and add to map, keep references, then create total result, compare paths, ...
 function query() {
     hideResult();
     hideInvalidRequest();
@@ -156,17 +144,16 @@ function query() {
 
     xhr.onreadystatechange = function () {
         console.log('complete response', xhr.responseText);
+
         if (xhr.readyState === 4 && xhr.status === 200) {
             let json = JSON.parse(xhr.responseText);
-            console.log('complete response json', json);
-            console.log('result amount', json.length)
+            // result is ordered by descending length
+            showResultToast(json[json.length-1].cost);
             for (result of json) {
                 console.log('single result', result);
                 if (result.path) {
                     console.log(result.path);
-                    printPath(result.path);
-                    printElevation(result.path.map(node => node.elevation));
-                    showResult(result.cost);
+                    addResult(result);
                 } else {
                     showNoPathFound();
                 }
@@ -199,27 +186,20 @@ function query() {
     xhr.send(data);
 }
 
-// TODO:
-function printPath(path) {
-    // create [lat, lng] array for leaflet map
-    let points = path.map(node => [node.latitude, node.longitude]);
-    offTrackStart = L.polyline([startPoint, points[0]], {
-        'dashArray': 10,
-        'weight': 2
-    });
-    startToEnd = L.polyline(points);
-    startToEnd.setStyle({
-        color: get_next_edge_color()
-    });
-    offTrackEnd = L.polyline([points[points.length - 1], endPoint], {
-        'dashArray': 10,
-        'weight': 2
-    });
-    newPath = L.layerGroup([offTrackStart, startToEnd, offTrackEnd])
+function addResult(result) {
+    let totalEle = result.path.map(node => node.elevation).reduce((total, currentValue, currentIndex, elevation) => {
+        if (currentIndex === 0) {
+            return 0
+        }
+        let delta = currentValue - elevation[currentIndex - 1];
+        if (delta > 0) {
+            return total + delta
+        } else {
+            return total
+        }
+    }, 0);
 
-    lastPaths.push(newPath);
-    map.addLayer(newPath);
-    map.fitBounds([startPoint, endPoint]);
+    createPathView(result.path, result.cost, totalEle);
 }
 
 
@@ -256,9 +236,9 @@ function hideSelectStartAndEnd() {
     }
 }
 
-function showResult(costs) {
-    var tmp = document.getElementById("result")
-    tmp.innerHTML = costs;
+function showResultToast(costs) {
+    var tmp = document.getElementById("result");
+    tmp.innerHTML = `Shortest path has ${costs}`;
     tmp.style.display = "block";
 }
 
@@ -285,3 +265,37 @@ var redIcon = new L.Icon({
     popupAnchor: [1, -34],
     shadowSize: [41, 41]
 });
+
+function createPathView(path, cost, elevation) {
+    // create [lat, lng] array for leaflet map
+    let coords = path.map(node => [node.latitude, node.longitude]);
+    offTrackStart = L.polyline([startPoint, coords[0]], {
+        'dashArray': 10,
+        'weight': 2
+    });
+    let edge = L.polyline(coords);
+    let color = get_next_edge_color()
+    edge.setStyle({
+        color: color
+    });
+    let offTrackEnd = L.polyline([coords[coords.length - 1], endPoint], {
+        'dashArray': 10,
+        'weight': 2
+    });
+    let newPath = L.layerGroup([offTrackStart, edge, offTrackEnd])
+
+    lastPaths.push(newPath);
+    map.addLayer(newPath);
+    map.fitBounds([startPoint, endPoint]);
+
+    edge.bindPopup(`length: ${cost}\n` +
+        `elevation: ${elevation.toFixed(2) + 'm'}`);
+    edge.on('mouseover', function (e) {
+        this.openPopup();
+        console.log('path', path);
+        showElevationGraph(path.map(node => node.elevation), elevation, color);
+    });
+    edge.on('mouseout', function (e) {
+        this.closePopup();
+    })
+}

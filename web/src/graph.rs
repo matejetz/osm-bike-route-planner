@@ -55,9 +55,9 @@ impl Eq for State {}
 impl Ord for State {
     fn cmp(&self, other: &Self) -> Ordering {
         let cmp = other.cost - self.cost;
-        if cmp == 0.0 { return Ordering::Equal };
-        if cmp > 0.0 { return Ordering::Greater }
-        return Ordering::Less
+        if cmp == 0.0 { return Ordering::Equal; };
+        if cmp > 0.0 { return Ordering::Greater; }
+        return Ordering::Less;
     }
 }
 
@@ -151,10 +151,8 @@ impl Graph {
         };
     }
 
-    fn get_edge_weight(&self, way: Way, travel_type: usize, use_distance: bool, multiplier: f32) -> f32 {
-        let edge_distance = self.get_edge_distance(way, travel_type, use_distance);
-        let edge_ele_rise = self.get_edge_elevation_rise(way);
-        return edge_distance + (multiplier * edge_ele_rise);
+    fn get_weight_with_multiplier(&self, distance: f32, elevation: f32, multiplier: f32) -> f32 {
+        return distance + (multiplier * elevation);
     }
 
     fn is_valid_node_for_travel_type(&self, node_id: usize, allowed_types: &Vec<usize>) -> bool {
@@ -221,6 +219,7 @@ impl Graph {
         };
 
         if !all_paths && distance_result.ele_rise < max_elevation {
+            // shortest path after distance is in max elevation range and no further paths are queried
             return Ok(vec![distance_result]);
         }
 
@@ -235,7 +234,7 @@ impl Graph {
         let mut previous_multiplier = -1.0;
         let mut multiplier = 1.0;
         let mut found_paths = Vec::<DijkstraResult>::new();
-        let mut last_smaller_ele = DijkstraResult{ele_rise: 0.0, distance: 0.0, path: Vec::new()};
+        let mut last_smaller_ele = DijkstraResult { ele_rise: 0.0, distance: 0.0, path: Vec::new() };
         loop {
             println!("multiplier {}", multiplier);
             let multiplicator_result = match self.dijkstra(Dijkstra::Multiplier, start, end, travel_type, use_distance, Some(multiplier)) {
@@ -245,27 +244,25 @@ impl Graph {
             if multiplicator_result.ele_rise - distance_result.ele_rise == 0.0 {
                 if !all_paths {
                     println!("was same {} {} {}", multiplicator_result.distance, multiplicator_result.ele_rise, multiplier);
-                    return Ok(vec![multiplicator_result]);
+                    if multiplicator_result.ele_rise < max_elevation {
+                        return Ok(vec![multiplicator_result]);
+                    }
                 }
-                // distance identity also in elevation range
-                found_paths.push(multiplicator_result.clone());
-                break;
+                if multiplicator_result.ele_rise < max_elevation {
+                    // distance identity also in elevation range
+                    found_paths.push(multiplicator_result.clone());
+                }
+                break
             }
             multiplier = (distance_result.distance - multiplicator_result.distance) / (multiplicator_result.ele_rise - distance_result.ele_rise);
             if multiplier == previous_multiplier {
                 if !all_paths {
                     return Ok(vec![multiplicator_result]);
                 }
-                break;
+                break
             } else if multiplicator_result.ele_rise <= max_elevation {
                 last_smaller_ele = multiplicator_result.clone();
                 found_paths.push(multiplicator_result);
-            } else if multiplicator_result.ele_rise > max_elevation {
-                if all_paths {
-                    break;
-                } else {
-                    return Ok(vec![last_smaller_ele])
-                }
             }
             previous_multiplier = multiplier;
         }
@@ -330,7 +327,7 @@ impl Graph {
                         Dijkstra::Distance => additional_distance,
                         Dijkstra::Elevation => additional_ele_rise,
                         Dijkstra::Multiplier => match multiplier {
-                            Some(multiplier) => self.get_edge_weight(current_way, travel_type, use_distance, multiplier),
+                            Some(multiplier) => self.get_weight_with_multiplier(additional_distance, additional_ele_rise, multiplier),
                             None => panic!("Dijkstra was called in multiplier mode but no multiplier was provided")
                         }
                     },
