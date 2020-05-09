@@ -147,8 +147,8 @@ function query() {
 
         if (xhr.readyState === 4 && xhr.status === 200) {
             let json = JSON.parse(xhr.responseText);
-            // result is ordered by descending length
-            showResultToast(json[json.length-1].cost);
+            // result is ordered by ascending length
+            showResultToast(json[0].cost);
             for (result of json) {
                 console.log('single result', result);
                 if (result.path) {
@@ -238,7 +238,7 @@ function hideSelectStartAndEnd() {
 
 function showResultToast(costs) {
     var tmp = document.getElementById("result");
-    tmp.innerHTML = `Shortest path has ${costs}`;
+    tmp.innerHTML = `Shortest path for elevation restriction has ${costs}`;
     tmp.style.display = "block";
 }
 
