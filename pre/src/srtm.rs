@@ -92,12 +92,12 @@ impl SRTM {
         // unzip file
         let mut unzipped_file = zip::read::read_zipfile_from_stream(&mut response).unwrap().unwrap();
         let mut file_buf: Vec<u8> = Vec::new();
-        unzipped_file.read_to_end(&mut file_buf);
+        unzipped_file.read_to_end(&mut file_buf).map_err(|err|println!("{:?}", err)).err();
 
         // save unzipped file
         let mut file_location = SRTM::get_relative_strm_file_path(file_name);
         let mut dest = File::create(&file_location).unwrap();
-        dest.write_all(&file_buf);
+        dest.write_all(&file_buf).map_err(|err| println!("{:?}", err)).err();
         println!("saved srtm file to: {}", file_location);
         Ok(())
     }
@@ -178,10 +178,7 @@ impl GeoElevationFile {
 
     fn get_interpolated_elevation(&self, latitude: f32, longitude: f32) -> f32 {
         let mut ele_weight = self.get_elevation_weight_of_neighbors(latitude, longitude);
-
-        for x in &ele_weight {
-            println!("{:?}", x)
-        }
+        println!("number of neighbors {}", ele_weight.len());
         // sum all weights in result
         let sum_weights: f32 = ele_weight.iter().map(|&e_w| e_w.1).sum();
         // return normalized sum

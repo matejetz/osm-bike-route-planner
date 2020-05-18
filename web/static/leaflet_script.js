@@ -1,3 +1,4 @@
+// TODO: This needs major refactoring, create objects for edges, remove global variables, pull out methods
 var map = L.map('map', {
     maxBounds: [
         [47.3, 5.9], // Southwest coordinates
@@ -21,17 +22,11 @@ let startMarker;
 let endPoint;
 let endMarker;
 let tmpMarker;
-let lastPaths = [];
-let chart;
+let pathsOnMap = [];
+let result;
+let lineChart;
+let scatterChart;
 let xhr = new XMLHttpRequest();
-
-let EDGE_COLORS = ['black','red','green','blue','orange','yellow', 'purple', 'pink', 'gold', 'tomato', 'olivedrab'];
-let edge_color_count = 0;
-
-function get_next_edge_color() {
-    // looping over edge colors
-    return EDGE_COLORS[edge_color_count++ % EDGE_COLORS.length]
-}
 
 function onMapClick(e) {
     if (tmpMarker) {
@@ -55,11 +50,11 @@ function setStart() {
         icon: greenIcon
     }).addTo(map);
     map.removeLayer(tmpMarker);
-    if (lastPaths.length > 0) {
-        for (let path of lastPaths) {
+    if (pathsOnMap.length > 0) {
+        for (let path of pathsOnMap) {
             map.removeLayer(path);
         }
-        lastPaths = []
+        pathsOnMap = []
     }
 }
 
@@ -76,11 +71,11 @@ function setEnd() {
         icon: redIcon
     }).addTo(map);
     map.removeLayer(tmpMarker);
-    if (lastPaths.length > 0) {
-        for (let path of lastPaths) {
+    if (pathsOnMap.length > 0) {
+        for (let path of pathsOnMap) {
             map.removeLayer(path);
         }
-        lastPaths = []
+        pathsOnMap = []
     }
 }
 
@@ -89,10 +84,7 @@ function showElevationGraph(elevationPoints, totalElevation, color) {
     let result = document.getElementById('totalElevation');
     result.innerText = 'Total: ' + totalElevation.toFixed(2) + 'm';
     let graph = document.getElementById('elevationGraph').getContext('2d');
-    if (chart) {
-        chart.destroy()
-    }
-    chart = new Chart(graph, {
+    lineChart = new Chart(graph, {
         type: 'line',
         data: {
             labels: elevationPoints.map((ele, index) => index),
@@ -115,22 +107,54 @@ function showElevationGraph(elevationPoints, totalElevation, color) {
             }
         }
     });
-    graphContainer = document.getElementById("graphContainer");
+    let graphContainer = document.getElementById("elevationGraphContainer");
     graphContainer.style.display = "block";
 }
 
-//TODO: First create paths and add to map, keep references, then create total result, compare paths, ...
+function displayResponse(responseText) {
+    let json = JSON.parse(responseText);
+    // result is ordered by ascending length
+    if (json.length === 0) {
+        showNoPathFound();
+        return;
+    }
+    // shortest distance result always first
+    for (jsonResult of json) {
+        result.add(jsonResult);
+    }
+    showResultToast(result);
+    createViews(result);
+}
+
+
+function removeGraphsAndEdges() {
+    if (lineChart) {
+        lineChart.destroy();
+    }
+    if (scatterChart) {
+        scatterChart.destroy();
+    }
+    if (pathsOnMap.length > 0) {
+        for (let path of pathsOnMap) {
+            map.removeLayer(path);
+        }
+    }
+    pathsOnMap = []
+}
+
 function query() {
     hideResult();
     hideInvalidRequest();
     hideNoPathFound();
     hideSelectStartAndEnd();
+    removeGraphsAndEdges();
+    result = new Result();
 
-    if (lastPaths.length > 1) {
-        for (let path of lastPaths) {
+    if (pathsOnMap.length > 1) {
+        for (let path of pathsOnMap) {
             map.removeLayer(path);
         }
-        lastPaths = []
+        pathsOnMap = []
     }
 
     if (typeof startPoint === 'undefined' || typeof endPoint === 'undefined') {
@@ -146,18 +170,7 @@ function query() {
         console.log('complete response', xhr.responseText);
 
         if (xhr.readyState === 4 && xhr.status === 200) {
-            let json = JSON.parse(xhr.responseText);
-            // result is ordered by ascending length
-            showResultToast(json[0].cost);
-            for (result of json) {
-                console.log('single result', result);
-                if (result.path) {
-                    console.log(result.path);
-                    addResult(result);
-                } else {
-                    showNoPathFound();
-                }
-            }
+            displayResponse(xhr.responseText)
         } else if (xhr.readyState === 4) {
             showInvalidRequest();
         }
@@ -186,20 +199,56 @@ function query() {
     xhr.send(data);
 }
 
-function addResult(result) {
-    let totalEle = result.path.map(node => node.elevation).reduce((total, currentValue, currentIndex, elevation) => {
-        if (currentIndex === 0) {
-            return 0
-        }
-        let delta = currentValue - elevation[currentIndex - 1];
-        if (delta > 0) {
-            return total + delta
-        } else {
-            return total
-        }
-    }, 0);
+function createScatterChart(result) {
+    let graph = document.getElementById('scatterGraph').getContext('2d');
+    datasetArray = [];
+    for (resultPath of result.weightedResults) {
+        datasetArray.push({
+            data: [{
+                x: resultPath.distance,
+                y: resultPath.elevation,
+            }],
+            backgroundColor: resultPath.color,
+            borderColor: resultPath.color,
+        })
+    }
+    scatterChartChart = new Chart(graph, {
+        type: 'scatter',
+        data: {
+            datasets: datasetArray
+        },
+        options: {
+            legend: {display: false},
+            scales: {
+                yAxes: [{
+                    scaleLabel: {
+                        display: true,
+                        labelString: 'elevation in m',
+                    },
+                    ticks: {
+                        beginAtZero: false
+                    }
+                }],
+                xAxes: [{
+                    scaleLabel: {
+                        display: true,
 
-    createPathView(result.path, result.cost, totalEle);
+                        labelString: `distance in ${result.distanceType}`,
+                    },
+
+                }]
+            }
+        }
+    });
+    let graphContainer = document.getElementById("scatterGraphContainer");
+    graphContainer.style.display = "block";
+}
+
+function createViews(result) {
+    createScatterChart(result);
+    for (let resultPath of result.weightedResults) {
+        createPathView(resultPath.path, resultPath.distance, resultPath.distance_type, resultPath.elevation, resultPath.color);
+    }
 }
 
 
@@ -236,9 +285,9 @@ function hideSelectStartAndEnd() {
     }
 }
 
-function showResultToast(costs) {
+function showResultToast(result) {
     var tmp = document.getElementById("result");
-    tmp.innerHTML = `Shortest path for elevation restriction has ${costs}`;
+    tmp.innerHTML = `Shortest path for elevation restriction has ${result.minDistance} ${result.distanceType}`;
     tmp.style.display = "block";
 }
 
@@ -266,15 +315,14 @@ var redIcon = new L.Icon({
     shadowSize: [41, 41]
 });
 
-function createPathView(path, cost, elevation) {
+function createPathView(path, distance, distanceType, elevation, color) {
     // create [lat, lng] array for leaflet map
     let coords = path.map(node => [node.latitude, node.longitude]);
-    offTrackStart = L.polyline([startPoint, coords[0]], {
+    let offTrackStart = L.polyline([startPoint, coords[0]], {
         'dashArray': 10,
         'weight': 2
     });
     let edge = L.polyline(coords);
-    let color = get_next_edge_color()
     edge.setStyle({
         color: color
     });
@@ -282,20 +330,21 @@ function createPathView(path, cost, elevation) {
         'dashArray': 10,
         'weight': 2
     });
-    let newPath = L.layerGroup([offTrackStart, edge, offTrackEnd])
+    let newPath = L.layerGroup([offTrackStart, edge, offTrackEnd]);
 
-    lastPaths.push(newPath);
+    pathsOnMap.push(newPath);
     map.addLayer(newPath);
     map.fitBounds([startPoint, endPoint]);
 
-    edge.bindPopup(`length: ${cost}\n` +
-        `elevation: ${elevation.toFixed(2) + 'm'}`);
+    edge.bindPopup(`length: ${distance}${distanceType}\n` +
+        `elevation: ${elevation.toFixed(2)}'m'`);
     edge.on('mouseover', function (e) {
         this.openPopup();
-        console.log('path', path);
         showElevationGraph(path.map(node => node.elevation), elevation, color);
     });
     edge.on('mouseout', function (e) {
         this.closePopup();
-    })
+    });
+
+    return newPath;
 }

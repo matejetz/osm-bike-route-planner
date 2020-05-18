@@ -57,7 +57,10 @@
 			</div>
 			<button style="height: 40px; font-size: 15px" class="info-button search" onclick="query()">Find Path</button>
 		</div>
-		<div id="graphContainer">
+		<div id="scatterGraphContainer">
+			<canvas id="scatterGraph"></canvas>
+		</div>
+		<div id="elevationGraphContainer">
 			<canvas id="elevationGraph"></canvas>
 			<div id="totalElevation"></div>
 		</div>
@@ -66,6 +69,7 @@
 		<div class="toast" id="no-path-found" style="display:none" onclick="hideNoPathFound()">No Path found</div>
 		<div class="toast" id="select-start-and-end" style="display:none" onclick="hideSelectStartAndEnd()">Please select start and end</div>
 		<div class="toast" id="result" style="display:none" onclick="hideResult()">Resulting cost</div>
+		<script src="models.js"></script>
 		<script src="leaflet_script.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.3/dist/Chart.min.js"></script>
 	</body>

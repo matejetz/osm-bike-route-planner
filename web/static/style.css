@@ -16,11 +16,30 @@ body {
 	z-index: 1001;
 }
 
-#graphContainer {
+#elevationGraphContainer {
 	position: absolute;
 	display: none;
 	bottom: 16px;
 	right: 8px;
+	padding: 20px;
+	background: rgba(255,255,255,0.9);
+	color: #282828;
+	border-radius: 5px;
+	width: 500px;
+	z-index: 1000;
+}
+
+#scatterGraph {
+	width: 500px;
+	height: 500px;
+	z-index: 1003;
+}
+
+#scatterGraphContainer {
+	position: absolute;
+	display: none;
+	bottom: 16px;
+	left: 8px;
 	padding: 20px;
 	background: rgba(255,255,255,0.9);
 	color: #282828;
@@ -57,7 +76,7 @@ body {
 	border-radius: 2px;
 	padding: 16px;
 	position: fixed;
-	z-index: 1000;
+	z-index: 1050;
 	left: 50%;
 	bottom: 30px;
 }

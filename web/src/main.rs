@@ -63,7 +63,9 @@ struct Query {
 #[derive(Debug, Deserialize, Serialize)]
 struct Response {
     path: Vec<Node>,
-    cost: String,
+    distance: f32,
+    distance_type: String,
+    elevation: f32,
 }
 
 fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec<Response>> {
@@ -100,27 +102,30 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec
         Ok(drs) => {
             for dr in drs {
                 let result: Vec<Node>;
-                let mut cost: String = "".to_string();
+                let mut distance: f32;
+                let mut distance_type: String = "".to_string();
                 println!("elevation: {}", dr.ele_rise);
                 println!("distance: {}", dr.distance);
                 result = dijkstra.get_nodes(dr.path);
                 match by_distance {
                     false => {
                         if dr.distance.trunc() >= 1.0 {
-                            cost = dr.distance.trunc().to_string();
-                            cost.push_str("h ");
+                            distance = dr.distance;
+                            distance_type.push_str("h ");
                         }
-                        cost.push_str(&format!("{:.0}", dr.distance.fract() * 60.0));
-                        cost.push_str("min");
+                        distance = dr.distance.fract() * 60.0;
+                        distance_type.push_str("min");
                     }
                     true => {
-                        cost = format!("{:.2}", dr.distance);
-                        cost.push_str("km");
+                        distance = dr.distance;
+                        distance_type.push_str("km");
                     }
                 };
                 results.push(Response{
                     path: result,
-                    cost
+                    distance,
+                    distance_type,
+                    elevation: dr.ele_rise
                 })
             }
         }
