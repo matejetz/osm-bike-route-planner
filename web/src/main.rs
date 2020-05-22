@@ -94,7 +94,7 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec
 
     let timing = Instant::now();
 
-    let tmp = dijkstra.find_path(start_id, end_id, travel_type, by_distance, max_elevation as f32, all_paths);
+    let tmp = dijkstra.find_optimal_path(start_id, end_id, travel_type, by_distance, max_elevation as f32, all_paths);
     println!("### duration for find_path(): {:?}", timing.elapsed());
 
     let mut results = Vec::<Response>::new();
