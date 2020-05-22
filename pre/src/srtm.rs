@@ -185,9 +185,11 @@ impl GeoElevationFile {
         return ele_weight.iter().map(|&e_w| (e_w.1 / sum_weights) * e_w.0 as f32).sum();
     }
 
+    /// returns elevation and weighting of nearest neighbor and its neighbors interpolated by distance to actual node
     fn get_elevation_weight_of_neighbors(&self, latitude: f32, longitude: f32) -> Vec<(i16, f32)> {
         let (row, column) = self.get_row_and_column(latitude, longitude);
         let mut ele_weight = Vec::<(i16, f32)>::new();
+        // nearest neighbor
         match self.get_elevation_from_row_and_column(row, column) {
             Ok(ele) => {
                 let (lat_nearest, lon_nearest) = self.get_lat_and_lon(row, column);
@@ -196,7 +198,7 @@ impl GeoElevationFile {
             }
             Err(e) => ()
         }
-
+        // nearest neighbors top neighbor
         match self.get_elevation_from_row_and_column(row, column - 1) {
             Ok(ele) => {
                 let (lat_west, lon_west) = self.get_lat_and_lon(row, column - 1);
@@ -205,7 +207,7 @@ impl GeoElevationFile {
             }
             Err(e) => ()
         }
-
+        // nearest neighbors bottom neighbor
         match self.get_elevation_from_row_and_column(row, column + 1) {
             Ok(ele) => {
                 let (lat_east, lon_east) = self.get_lat_and_lon(row, column + 1);
@@ -214,7 +216,7 @@ impl GeoElevationFile {
             }
             Err(e) => ()
         }
-
+        // nearest neighbors left neighbor
         match self.get_elevation_from_row_and_column(row - 1, column) {
             Ok(ele) => {
                 let (lat_north, lon_north) = self.get_lat_and_lon(row - 1, column);
@@ -223,7 +225,7 @@ impl GeoElevationFile {
             }
             Err(e) => ()
         }
-
+        // nearest neighbors right neighbor
         match self.get_elevation_from_row_and_column(row + 1, column) {
             Ok(ele) => {
                 let (lat_south, lon_south) = self.get_lat_and_lon(row + 1, column);
