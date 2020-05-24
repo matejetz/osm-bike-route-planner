@@ -1,5 +1,5 @@
 // based on https://rosettacode.org/wiki/Dijkstra%27s_algorithm#Rust
-use std::cmp::{max, Ordering};
+use std::cmp::{Ordering};
 use std::collections::{BinaryHeap, HashMap};
 use std::usize;
 
@@ -245,23 +245,23 @@ impl Graph {
         }
 
         let mut multiplier: f64 = -1.0;
-        let mut previous_multiplier: f64 = -1.0;
-        let mut recommendation_threshold_multiplier_delta = 0.01;
+        let mut previous_multiplier;
+        let  recommendation_multiplier_threshold = 0.01;
         loop {
             previous_multiplier = multiplier;
-            multiplier = (((distance_result.distance - elevation_result.distance) as f64) / ((elevation_result.ele_rise - distance_result.ele_rise) as f64));
-            let mut latest_result: DijkstraResult = match self.dijkstra(Dijkstra::Multiplier, start, end, travel_type, use_distance, Some(multiplier)) {
+            multiplier = ((distance_result.distance - elevation_result.distance) as f64) / ((elevation_result.ele_rise - distance_result.ele_rise) as f64);
+            let latest_result: DijkstraResult = match self.dijkstra(Dijkstra::Multiplier, start, end, travel_type, use_distance, Some(multiplier)) {
                 Some(d_r) => d_r,
                 None => break
             };
 
             if latest_result.multiplier == elevation_result.multiplier || latest_result.multiplier == distance_result.multiplier {
-                found_paths.push(elevation_result);
+                // perfect multiplier found
                 break;
             }
             if latest_result.ele_rise <= max_elevation {
                 let multi_delta = (multiplier - previous_multiplier).abs();
-                if multi_delta > recommendation_threshold_multiplier_delta {
+                if multi_delta > recommendation_multiplier_threshold {
                     // add path as recommendation (optimal path for different weighting)
                     found_paths.push(latest_result.clone());
                 }
