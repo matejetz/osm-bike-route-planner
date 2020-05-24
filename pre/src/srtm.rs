@@ -183,7 +183,6 @@ impl GeoElevationFile {
 
     fn get_interpolated_elevation(&self, latitude: f32, longitude: f32) -> f32 {
         let mut ele_weight = self.get_elevation_weight_of_neighbors(latitude, longitude);
-        println!("number of neighbors {}", ele_weight.len());
         // sum all weights in result
         let sum_weights: f32 = ele_weight.iter().map(|&e_w| e_w.1).sum();
         // return normalized sum

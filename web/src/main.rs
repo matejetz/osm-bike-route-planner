@@ -105,8 +105,6 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec
                 let result: Vec<Node>;
                 let mut distance: f64;
                 let mut distance_type: String = "".to_string();
-                println!("elevation: {}", dr.ele_rise);
-                println!("distance: {}", dr.distance);
                 result = dijkstra.get_nodes(dr.path);
                 match by_distance {
                     false => {
