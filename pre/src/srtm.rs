@@ -84,7 +84,7 @@ impl SRTM {
     }
 
     fn get_relative_strm_file_path(file_name: &str) -> String {
-        let path = format!("{}/{}.hgt", STRM_FOLDER_NAME, file_name);
+        let path = format!("{}/{}.hgt", SRTM_FOLDER_NAME, file_name);
         path
     }
 
