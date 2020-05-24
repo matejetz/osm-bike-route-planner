@@ -30,6 +30,13 @@ When preparsing the <cite>OpenStreetMap[4]</cite> files, the elevation for each 
 
 Is the webserver which provides the interface and executes the <cite>LARAC (Lagrange Relaxation based Aggregated Cost)[1]</cite> algorithm for the chosen start and destination node. It needs the `.osm.pbf.fmi`-file from the `pre`-programm as an input to used as a data source.
 
+![hallo](./doc/osm_bike_example.png)
+As seen in the screenshot above, the user provided a max elevation of 500m as an input and agreed to also receive recommended paths in his elevation range other than the shortest one. <br>
+On the bottom left is a scatter diagram that shows how the different recommended routes are balancing between elevation and distance. In this example, the red-lined path is the "optimal path" for the users request and usually the only route the bike route planner returns. Here two other recommendation (blue + green) along with thenlowest elevation path with the (black) were returned by the modified LARAC algorithm. <br>
+The LARAC algorithm approaches the optimal route by giving different weightings for distance and elevation to the underlying dijkstra's algorithm. For giving additional recommendations to the user, the LARAC algorithm was modified to not only return the shortest route under a given threshold (max elevation) but instead also returning all paths that were computed under a different weighting and have a maximum elevation in the range provided by the user. <br>
+On hovering over a specific path, the user can get more detailed informations about a paths distance and elevation and additionally a height profile of the track is drawn in the bottom right corner of the screen.
+
+
 ### dependecies
 
 - `actix-files` = serving static files
