@@ -3,6 +3,7 @@ extern crate actix_web;
 extern crate bincode;
 extern crate serde;
 extern crate serde_json;
+extern crate core;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -63,9 +64,9 @@ struct Query {
 #[derive(Debug, Deserialize, Serialize)]
 struct Response {
     path: Vec<Node>,
-    distance: f32,
+    distance: f64,
     distance_type: String,
-    elevation: f32,
+    elevation: f64,
 }
 
 fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec<Response>> {
@@ -94,7 +95,7 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec
 
     let timing = Instant::now();
 
-    let tmp = dijkstra.find_optimal_path(start_id, end_id, travel_type, by_distance, max_elevation as f32, all_paths);
+    let tmp = dijkstra.find_optimal_path(start_id, end_id, travel_type, by_distance, max_elevation as f64, all_paths);
     println!("### duration for find_path(): {:?}", timing.elapsed());
 
     let mut results = Vec::<Response>::new();
@@ -102,7 +103,7 @@ fn query(request: web::Json<Query>, dijkstra: web::Data<Graph>) -> web::Json<Vec
         Ok(drs) => {
             for dr in drs {
                 let result: Vec<Node>;
-                let mut distance: f32;
+                let mut distance: f64;
                 let mut distance_type: String = "".to_string();
                 println!("elevation: {}", dr.ele_rise);
                 println!("distance: {}", dr.distance);

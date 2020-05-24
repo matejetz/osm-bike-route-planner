@@ -1,4 +1,3 @@
-// TODO: This needs major refactoring, create objects for edges, remove global variables, pull out methods
 var map = L.map('map', {
     maxBounds: [
         [47.3, 5.9], // Southwest coordinates
@@ -111,7 +110,7 @@ function showElevationGraph(elevationPoints, totalElevation, color) {
     graphContainer.style.display = "block";
 }
 
-function displayResponse(responseText) {
+function displayResult(responseText) {
     let json = JSON.parse(responseText);
     // result is ordered by ascending length
     if (json.length === 0) {
@@ -130,9 +129,11 @@ function displayResponse(responseText) {
 function removeGraphsAndEdges() {
     if (lineChart) {
         lineChart.destroy();
+        document.getElementById("elevationGraphContainer").style.display = 'none';
     }
     if (scatterChart) {
         scatterChart.destroy();
+        document.getElementById("scatterGraphContainer").style.display = 'none';
     }
     if (pathsOnMap.length > 0) {
         for (let path of pathsOnMap) {
@@ -170,7 +171,7 @@ function query() {
         console.log('complete response', xhr.responseText);
 
         if (xhr.readyState === 4 && xhr.status === 200) {
-            displayResponse(xhr.responseText)
+            displayResult(xhr.responseText)
         } else if (xhr.readyState === 4) {
             showInvalidRequest();
         }
@@ -212,7 +213,7 @@ function createScatterChart(result) {
             borderColor: resultPath.color,
         })
     }
-    scatterChartChart = new Chart(graph, {
+    scatterChart = new Chart(graph, {
         type: 'scatter',
         data: {
             datasets: datasetArray

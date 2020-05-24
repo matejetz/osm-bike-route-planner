@@ -237,7 +237,6 @@ impl GeoElevationFile {
         return ele_weight;
     }
 
-    // TODO: left out coef and ONE_DEGREE constant(?)
     fn distance(lat1: f32, lon1: f32, lat2: f32, lon2: f32) -> f32 {
         let x = lat1 - lat2;
         let y = lon1 - lon2;
