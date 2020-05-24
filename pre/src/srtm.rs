@@ -7,9 +7,10 @@ use std::fs::File;
 use std::io::{Bytes, copy, Read, Write};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use serde_json::error::ErrorCode::LoneLeadingSurrogateInHexEscape;
+use std::fs;
 
 const ELEVATION_NULL_VALUE: i16 = -32768;
+const SRTM_FOLDER_NAME: &str = "../strm_files";
 
 pub struct SRTM {
     _files: HashMap<String, GeoElevationFile>,
@@ -66,6 +67,10 @@ impl SRTM {
     }
 
     fn load_file_data(&self, file_name: &str) -> Vec<u8> {
+        let srtm_folder: &Path = Path::new(SRTM_FOLDER_NAME);
+        if !srtm_folder.exists() {
+            fs::create_dir_all(srtm_folder);
+        }
         let file_path: String = SRTM::get_relative_strm_file_path(file_name);
         let path: &Path = Path::new(&file_path);
         if !path.exists() {
@@ -79,7 +84,7 @@ impl SRTM {
     }
 
     fn get_relative_strm_file_path(file_name: &str) -> String {
-        let path = format!("../strm_files/{}.hgt", file_name);
+        let path = format!("{}/{}.hgt", STRM_FOLDER_NAME, file_name);
         path
     }
 
